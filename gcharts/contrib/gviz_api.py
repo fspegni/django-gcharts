@@ -35,7 +35,7 @@ try:
 except ImportError:
   import simplejson as json
 import types
-
+import decimal
 
 class DataTableException(Exception):
   """The general exception object thrown by DataTable."""
@@ -232,6 +232,8 @@ class DataTable(object):
     elif value_type == "number":
       if isinstance(value, (int, long, float)):
         return value
+      elif isinstance(value, decimal.Decimal):
+        return float(value)
       raise DataTableException("Wrong type %s when expected number" % t_value)
 
     elif value_type == "string":
