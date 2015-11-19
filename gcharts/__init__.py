@@ -128,8 +128,6 @@ class GChartsQuerySetMixin(object): #(QuerySet):
         table_description = {}
         labels = labels or {}
 
-        print "passed labels: %s" % labels
-        
         # resolve aggregates
         aggregates = getattr(self, "aggregate_names", None)
         if aggregates is not None:
@@ -144,7 +142,6 @@ class GChartsQuerySetMixin(object): #(QuerySet):
         extra = getattr(self, "extra_names", None)
         valid_jstypes = ("string", "number", "boolean", "date", "datetime", "timeofday")
 
-        print "check extra: %s" % extra
         if extra is not None:
             for alias in six.iterkeys(self.query.extra):
                 try:
@@ -212,7 +209,6 @@ class GChartsQuerySetMixin(object): #(QuerySet):
                         raise ValueError("You must specify a dict as field spec")
                     table_description[field_name] = field_spec.items()[0]
 
-        print "Tab desc: %s" % table_description
         return table_description
         
        
@@ -443,8 +439,6 @@ class GChartsRawQuerySet(GChartsQuerySetMixin, RawQuerySet):
             for field in fields:
                 data_row[field] = orig_row.__dict__.get(field, None)
             data.append(data_row)
-
-        print "returning data: %s" % (data,)
 
         return data
 
