@@ -3,7 +3,7 @@
 import logging
 
 from django.db import models
-from django.db.models.query import QuerySet, ValuesQuerySet, ValuesListQuerySet
+from django.db.models.query import QuerySet, ValuesQuerySet, ValuesListQuerySet, RawQuerySet
 from django.utils import six
 
 
@@ -41,8 +41,13 @@ logger = _GChartsConfig.get_logger()
 
 class GChartsManager(models.Manager):
     
+    def raw(self, raw_query, params=None, *args, **kwargs):
+        return GChartsRawQuerySet(raw_query=raw_query, model=self.model, params=params, using=self._db, *args, **kwargs)
+
+
     def get_query_set(self):
         return GChartsQuerySet(self.model, using=self._db)
+
     
     def to_javascript(self, name, order=None, labels=None, formatting=None, properties=None):
         return self.get_query_set().to_javascript(name, order, labels, formatting, properties)
@@ -65,13 +70,14 @@ class GChartsManager(models.Manager):
                                                      req_id, handler)
     
 
-class GChartsQuerySet(QuerySet):
+class GChartsQuerySetMixin(object): #(QuerySet):
     """
     A QuerySet which returns google charts compatible data
     output
     """
     def __init__(self, *args, **kwargs):
-        super(GChartsQuerySet, self).__init__(*args, **kwargs)
+        super(GChartsQuerySetMixin, self).__init__(*args, **kwargs)
+
 
     @staticmethod
     def javascript_field(field):
@@ -108,7 +114,7 @@ class GChartsQuerySet(QuerySet):
         """
         if not isinstance(formatting, dict):
             raise Exception("formatting must be a dict")
-        for row in self.values(*fields):
+        for row in self.get_data(*fields):
             for field, frmt in six.iteritems(formatting):
                 val = row[field]
                 frmt_val = frmt.format(val)
@@ -121,6 +127,8 @@ class GChartsQuerySet(QuerySet):
         """
         table_description = {}
         labels = labels or {}
+
+        print "passed labels: %s" % labels
         
         # resolve aggregates
         aggregates = getattr(self, "aggregate_names", None)
@@ -135,6 +143,8 @@ class GChartsQuerySet(QuerySet):
         # dict as follows: labels={"extra_name": {"javascript type": "label"}, ... }
         extra = getattr(self, "extra_names", None)
         valid_jstypes = ("string", "number", "boolean", "date", "datetime", "timeofday")
+
+        print "check extra: %s" % extra
         if extra is not None:
             for alias in six.iterkeys(self.query.extra):
                 try:
@@ -170,7 +180,10 @@ class GChartsQuerySet(QuerySet):
                 if field.attname in labels:
                     labels[field.name] = labels.pop(field.attname)
                 label = labels.pop(field.name, field.name)
-                field_jstype = self.javascript_field(field)
+                try:
+                    field_jstype = self.javascript_field(field)
+                except KeyError:
+                    continue
                 table_description.update({field.name: (field_jstype, label)})
             else:
                 # lookup fields (with double underscore) left in fields set
@@ -190,19 +203,19 @@ class GChartsQuerySet(QuerySet):
         if fields:
             logger.warning("Could not create table description for the following fields %s:" %
                            ", ".join(fields))
+
+        # process additional fields specified in labels (useful for raw queries)
+        if labels:
+            for field_name,field_spec in labels.iteritems():
+                if field_name not in table_description:
+                    if not isinstance(field_spec, dict):
+                        raise ValueError("You must specify a dict as field spec")
+                    table_description[field_name] = field_spec.items()[0]
+
+        print "Tab desc: %s" % table_description
         return table_description
         
-    def values(self, *fields):
-        return self._clone(klass=GChartsValuesQuerySet, setup=True, _fields=fields)
-    
-    def values_list(self, *fields, **kwargs):
-        flat = kwargs.pop("flat", False)
-        if kwargs:
-            raise TypeError("Unexpected keyword arguments to values_list: %s" % (kwargs.keys(),))
-        if flat and len(fields) > 1:
-            raise TypeError("'flat' is not valid when values_list is called with more than one field.")
-        return self._clone(klass=GChartsValuesListQuerySet, setup=True, flat=flat, _fields=fields)
-        
+       
     #
     # Methods which serialize data to various outputs.
     # These methods are just a convenient wrapper to the
@@ -235,7 +248,8 @@ class GChartsQuerySet(QuerySet):
         if formatting is not None:
             data = self.formatting(fields, formatting)
         else:
-            data = self.values(*fields)
+            data = self.get_data(*fields)
+
         data_table = gviz_api.DataTable(table_descr, data, properties)
         return data_table.ToJSCode(name=name, columns_order=order)
     
@@ -260,7 +274,7 @@ class GChartsQuerySet(QuerySet):
         if formatting is not None:
             data = self.formatting(fields, formatting)
         else:
-            data = self.values(*fields)
+            data = self.get_data(*fields)
         data_table = gviz_api.DataTable(table_descr, data, properties)
         return data_table.ToHtml(columns_order=order)
     
@@ -291,7 +305,7 @@ class GChartsQuerySet(QuerySet):
         if formatting is not None:
             data = self.formatting(fields, formatting)
         else:
-            data = self.values(*fields)
+            data = self.get_data(*fields)
         data_table = gviz_api.DataTable(table_descr, data, properties)
         return data_table.ToCsv(columns_order=order, separator=separator)
     
@@ -319,11 +333,15 @@ class GChartsQuerySet(QuerySet):
         if formatting is not None:
             data = self.formatting(fields, formatting)
         else:
-            data = self.values(*fields)
+            data = self.get_data(*fields)
         data_table = gviz_api.DataTable(table_descr, data, properties)
         return data_table.ToTsvExcel(columns_order=order)
+
+    def get_data(self, *fields):
+        raise NotImplementedError()
     
-    def to_json(self, order=None, labels=None, formatting=None, properties=None):
+    
+    def to_json(self, order=None, labels=None, formatting=None, properties=None, table_description=None):
         """
         Does _not_ return a new QuerySet.
         Return QuerySet data as json serialized string.
@@ -356,7 +374,8 @@ class GChartsQuerySet(QuerySet):
         if formatting is not None:
             data = self.formatting(fields, formatting)
         else:
-            data = self.values(*fields)
+            data = self.get_data(*fields)
+    
         data_table = gviz_api.DataTable(table_descr, data, properties)
         return data_table.ToJSon(columns_order=order)
     
@@ -390,14 +409,49 @@ class GChartsQuerySet(QuerySet):
         if formatting is not None:
             data = self.formatting(fields, formatting)
         else:
-            data = self.values(*fields)
+            data = self.get_data(*fields)
         data_table = gviz_api.DataTable(table_descr, data, properties)
         return data_table.ToJSonResponse(columns_order=order, req_id=req_id, response_handler=handler)
+ 
+
+class GChartsQuerySet(GChartsQuerySetMixin, QuerySet):
+
+    def get_data(self, *fields):
+        return self.values(*fields)
+
+    def values(self, *fields):
+        return self._clone(klass=GChartsValuesQuerySet, setup=True, _fields=fields)
     
+    def values_list(self, *fields, **kwargs):
+        flat = kwargs.pop("flat", False)
+        if kwargs:
+            raise TypeError("Unexpected keyword arguments to values_list: %s" % (kwargs.keys(),))
+        if flat and len(fields) > 1:
+            raise TypeError("'flat' is not valid when values_list is called with more than one field.")
+        return self._clone(klass=GChartsValuesListQuerySet, setup=True, flat=flat, _fields=fields)
+ 
+
+class GChartsRawQuerySet(GChartsQuerySetMixin, RawQuerySet):
+    
+    def get_data(self, *fields):
+    
+        data = []
+        # iterate over the entire recordset
+        for orig_row in self:
+            data_row = {}
+
+            for field in fields:
+                data_row[field] = orig_row.__dict__.get(field, None)
+            data.append(data_row)
+
+        print "returning data: %s" % (data,)
+
+        return data
 
 class GChartsValuesQuerySet(GChartsQuerySet, ValuesQuerySet):
     def __init__(self, *args, **kwargs):
         super(GChartsValuesQuerySet, self).__init__(*args, **kwargs)
+
 
 
 class GChartsValuesListQuerySet(GChartsValuesQuerySet, ValuesListQuerySet):
