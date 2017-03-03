@@ -2,8 +2,9 @@
 
 import logging
 
+from django.core.exceptions import FieldDoesNotExist
 from django.db import models
-from django.db.models.query import QuerySet, ValuesQuerySet, ValuesListQuerySet, RawQuerySet
+from django.db.models.query import QuerySet, RawQuerySet
 from django.utils import six
 
 
@@ -44,6 +45,9 @@ class GChartsManager(models.Manager):
     def raw(self, raw_query, params=None, *args, **kwargs):
         return GChartsRawQuerySet(raw_query=raw_query, model=self.model, params=params, using=self._db, *args, **kwargs)
 
+    
+    def all(self):
+        return self.get_query_set()
 
     def get_query_set(self):
         return GChartsQuerySet(self.model, using=self._db)
@@ -160,7 +164,19 @@ class GChartsQuerySetMixin(object): #(QuerySet):
                     )
 
         # resolve other fields of interest
-        fields = set(getattr(self, "_fields", [f.name for f in self.model._meta.fields]))
+        fields = set([])
+
+        if self.model is not None:
+            all_fields = [f.name for f in self.model._meta.fields]
+#            print "self type: %s" % type(self)
+#            print "model: %s" % self.model
+#            print "model meta: %s" % self.model._meta
+#            print "all fields %s" % all_fields
+            fields_list = getattr(self, "_fields", all_fields) or all_fields
+
+#            print "fields list: %s" % fields_list
+
+            fields = set(fields_list)
         
         # remove fields that has already been
         # put in the table_description
@@ -170,10 +186,26 @@ class GChartsQuerySetMixin(object): #(QuerySet):
                     fields.remove(f)
         clean_parsed_fields()
         
+#        model_fields = self.model._meta.get_fields()
+#        print "found model fields: %s" % (model_fields,)
+
         for f_name in fields:
+            print "checking local field: %s ..." % f_name
             # local fields
-            if f_name in self.model._meta.get_all_field_names():
+            field = None
+
+            try:
                 field = self.model._meta.get_field(f_name)
+            except FieldDoesNotExist:
+                pass
+
+#            if f_name in model_fields:
+            if field:
+                print "found field: %s (%s)" % (field, field.attname)
+
+#                field = self.model._meta.get_field(f_name)
+
+                
                 if field.attname in labels:
                     labels[field.name] = labels.pop(field.attname)
                 label = labels.pop(field.name, field.name)
@@ -206,7 +238,7 @@ class GChartsQuerySetMixin(object): #(QuerySet):
             for field_name,field_spec in labels.iteritems():
                 if field_name not in table_description:
                     if not isinstance(field_spec, dict):
-                        raise ValueError("You must specify a dict as field spec")
+                        raise ValueError("You must specify a dict to describe field '%s'" % field_name)
                     table_description[field_name] = field_spec.items()[0]
 
         return table_description
@@ -415,18 +447,18 @@ class GChartsQuerySet(GChartsQuerySetMixin, QuerySet):
     def get_data(self, *fields):
         return self.values(*fields)
 
-    def values(self, *fields):
-        return self._clone(klass=GChartsValuesQuerySet, setup=True, _fields=fields)
-    
-    def values_list(self, *fields, **kwargs):
-        flat = kwargs.pop("flat", False)
-        if kwargs:
-            raise TypeError("Unexpected keyword arguments to values_list: %s" % (kwargs.keys(),))
-        if flat and len(fields) > 1:
-            raise TypeError("'flat' is not valid when values_list is called with more than one field.")
-        return self._clone(klass=GChartsValuesListQuerySet, setup=True, flat=flat, _fields=fields)
- 
-
+##    def values(self, *fields):
+##        return self._clone(klass=GChartsValuesQuerySet, setup=True, _fields=fields)
+##    
+##    def values_list(self, *fields, **kwargs):
+##        flat = kwargs.pop("flat", False)
+##        if kwargs:
+##            raise TypeError("Unexpected keyword arguments to values_list: %s" % (kwargs.keys(),))
+##        if flat and len(fields) > 1:
+##            raise TypeError("'flat' is not valid when values_list is called with more than one field.")
+##        return self._clone(klass=GChartsValuesListQuerySet, setup=True, flat=flat, _fields=fields)
+## 
+##
 class GChartsRawQuerySet(GChartsQuerySetMixin, RawQuerySet):
     
     def get_data(self, *fields):
@@ -442,12 +474,12 @@ class GChartsRawQuerySet(GChartsQuerySetMixin, RawQuerySet):
 
         return data
 
-class GChartsValuesQuerySet(GChartsQuerySet, ValuesQuerySet):
-    def __init__(self, *args, **kwargs):
-        super(GChartsValuesQuerySet, self).__init__(*args, **kwargs)
+##class GChartsValuesQuerySet(GChartsQuerySet, ValuesQuerySet):
+##    def __init__(self, *args, **kwargs):
+##        super(GChartsValuesQuerySet, self).__init__(*args, **kwargs)
+##
+##
 
-
-
-class GChartsValuesListQuerySet(GChartsValuesQuerySet, ValuesListQuerySet):
-    def __init__(self, *args, **kwargs):
-        super(GChartsValuesListQuerySet, self).__init__(*args, **kwargs)
+##class GChartsValuesListQuerySet(GChartsValuesQuerySet, ValuesListQuerySet):
+##    def __init__(self, *args, **kwargs):
+##        super(GChartsValuesListQuerySet, self).__init__(*args, **kwargs)
