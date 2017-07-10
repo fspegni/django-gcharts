@@ -190,7 +190,7 @@ class GChartsQuerySetMixin(object): #(QuerySet):
 #        print "found model fields: %s" % (model_fields,)
 
         for f_name in fields:
-            print "checking local field: %s ..." % f_name
+            # print "checking local field: %s ..." % f_name
             # local fields
             field = None
 
@@ -201,7 +201,7 @@ class GChartsQuerySetMixin(object): #(QuerySet):
 
 #            if f_name in model_fields:
             if field:
-                print "found field: %s (%s)" % (field, field.attname)
+                #print "found field: %s (%s)" % (field, field.attname)
 
 #                field = self.model._meta.get_field(f_name)
 
