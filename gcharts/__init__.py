@@ -102,8 +102,7 @@ class GChartsQuerySetMixin(object): #(QuerySet):
             ("TimeField"): "timeofday",
         }
         
-#        for k, v in six.iteritems(fields):
-        for k, v in iter(six.items(fields)):
+        for k, v in six.iteritems(fields):
             if field.get_internal_type() in k:
                 return v
         # Should never hit this
@@ -120,8 +119,7 @@ class GChartsQuerySetMixin(object): #(QuerySet):
         if not isinstance(formatting, dict):
             raise Exception("formatting must be a dict")
         for row in self.get_data(*fields):
-#            for field, frmt in six.iteritems(formatting):
-            for field, frmt in iter(six.items(formatting)):
+            for field, frmt in six.iteritems(formatting):
                 val = row[field]
                 frmt_val = frmt.format(val)
                 row.update({field: (val, frmt_val)})
@@ -137,8 +135,7 @@ class GChartsQuerySetMixin(object): #(QuerySet):
         # resolve aggregates
         aggregates = getattr(self, "aggregate_names", None)
         if aggregates is not None:
-#            for alias, aggregate_expr in six.iteritems(self.query.aggregates):
-            for alias, aggregate_expr in iter(six.items(self.query.aggregates)):
+            for alias, aggregate_expr in six.iteritems(self.query.aggregates):
 
                 label = labels.pop(alias, alias)
                 field_jstype = self.javascript_field(aggregate_expr.field)
