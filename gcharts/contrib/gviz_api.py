@@ -28,7 +28,7 @@ __author__ = "Amit Weinstein, Misha Seltzer, Jacob Baskin"
 
 import cgi
 #import cStringIO
-import StringIO
+from io import StringIO
 import csv
 import datetime
 try:
