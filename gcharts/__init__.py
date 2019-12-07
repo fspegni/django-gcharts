@@ -241,7 +241,7 @@ class GChartsQuerySetMixin(object): #(QuerySet):
                 if field_name not in table_description:
                     if not isinstance(field_spec, dict):
                         raise ValueError("You must specify a dict to describe field '%s'" % field_name)
-                    table_description[field_name] = field_spec.items()[0]
+                    table_description[field_name] = list(field_spec.items())[0]
 
         return table_description
         
