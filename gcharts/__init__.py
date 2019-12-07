@@ -102,7 +102,8 @@ class GChartsQuerySetMixin(object): #(QuerySet):
             ("TimeField"): "timeofday",
         }
         
-        for k, v in six.iteritems(fields):
+#        for k, v in six.iteritems(fields):
+        for k, v in iter(six.items(fields)):
             if field.get_internal_type() in k:
                 return v
         # Should never hit this
@@ -119,7 +120,8 @@ class GChartsQuerySetMixin(object): #(QuerySet):
         if not isinstance(formatting, dict):
             raise Exception("formatting must be a dict")
         for row in self.get_data(*fields):
-            for field, frmt in six.iteritems(formatting):
+#            for field, frmt in six.iteritems(formatting):
+            for field, frmt in iter(six.items(formatting)):
                 val = row[field]
                 frmt_val = frmt.format(val)
                 row.update({field: (val, frmt_val)})
@@ -135,7 +137,9 @@ class GChartsQuerySetMixin(object): #(QuerySet):
         # resolve aggregates
         aggregates = getattr(self, "aggregate_names", None)
         if aggregates is not None:
-            for alias, aggregate_expr in six.iteritems(self.query.aggregates):
+#            for alias, aggregate_expr in six.iteritems(self.query.aggregates):
+            for alias, aggregate_expr in iter(six.items(self.query.aggregates)):
+
                 label = labels.pop(alias, alias)
                 field_jstype = self.javascript_field(aggregate_expr.field)
                 table_description.update({alias: (field_jstype, label)})
@@ -235,7 +239,8 @@ class GChartsQuerySetMixin(object): #(QuerySet):
 
         # process additional fields specified in labels (useful for raw queries)
         if labels:
-            for field_name,field_spec in labels.iteritems():
+#            for field_name,field_spec in labels.iteritems():
+            for field_name,field_spec in iter(labels.items()):
                 if field_name not in table_description:
                     if not isinstance(field_spec, dict):
                         raise ValueError("You must specify a dict to describe field '%s'" % field_name)
